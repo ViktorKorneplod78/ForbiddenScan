@@ -1,0 +1,92 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.Json;
+namespace ForbiddenScan;
+public static class Program
+{
+    static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
+    public static int Main(string[] args)
+    {
+        Console.OutputEncoding = Encoding.UTF8;
+        string? logPath = null;
+        try
+        {
+            if (args.Length == 0) { Console.WriteLine("Commands: scan [--algorithm naive|hash|aho], benchmark [--iterations 5], report --run-dir DIR, self-test. Common: --input DIR --run-dir DIR"); return 0; }
+            if (args[0] == "self-test") { SelfTests.Run(); return 0; }
+            if (args[0] is not ("scan" or "benchmark" or "report")) throw new ArgumentException("Unknown command.");
+            var options = new Dictionary<string, string>();
+            for (int i = 1; i < args.Length; i += 2)
+            {
+                if (!args[i].StartsWith("--") || i + 1 == args.Length) throw new ArgumentException("Expected --option value.");
+                string key = args[i][2..];
+                if (key is not ("input" or "run-dir" or "algorithm" or "iterations") || !options.TryAdd(key, args[i + 1]))
+                    throw new ArgumentException("Unknown or repeated option: " + key);
+            }
+            if (args[0] == "report")
+            {
+                string dir = options["run-dir"];
+                var saved = JsonSerializer.Deserialize<BenchmarkResult>(File.ReadAllText(Path.Combine(dir, "results.json")))!;
+                ReportWriter.Write(Path.Combine(dir, "report.html"), saved); return 0;
+            }
+            string input = Path.GetFullPath(options.GetValueOrDefault("input", "InputTerr"));
+            string runDir = Path.GetFullPath(options.GetValueOrDefault("run-dir", Path.Combine("reports", DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss-fff"))));
+            Directory.CreateDirectory(runDir);
+            logPath = Path.Combine(runDir, "run.log");
+            using var log = new Logger(logPath);
+            var timer = Stopwatch.StartNew();
+            var patterns = File.ReadLines(Path.Combine(input, "Запрещенные организации.txt"), new UTF8Encoding(false, true))
+                .Select(x => TextNormalizer.Normalize(x.Trim())).Where(x => x.Length > 0).Distinct(StringComparer.Ordinal).ToArray();
+            string[] files = ["Список документов ams.txt", "Список документов arb.txt", "Список документов r002.txt"];
+            files = files.Select(x => Path.Combine(input, x)).ToArray();
+            foreach (var file in files) if (!File.Exists(file)) throw new FileNotFoundException(file);
+            timer.Stop();
+            var report = new BenchmarkResult { Files = files, PatternCount = patterns.Length, InputPreparationMs = timer.Elapsed.TotalMilliseconds,
+                Iterations = int.Parse(options.GetValueOrDefault("iterations", "5")),
+                Environment = new() { ["OS"] = RuntimeInformation.OSDescription, [".NET"] = RuntimeInformation.FrameworkDescription,
+                    ["Architecture"] = RuntimeInformation.ProcessArchitecture.ToString(), ["CPU"] = System.Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER") ?? "unknown",
+                    ["Logical processors"] = System.Environment.ProcessorCount.ToString() } };
+            if (report.Iterations < 1) throw new ArgumentException("Iterations must be positive.");
+            log.Write($"Command: {args[0]}; patterns: {patterns.Length}; common preparation: {report.InputPreparationMs:F3} ms");
+            ScanResult scan;
+            if (args[0] == "benchmark")
+            {
+                BenchmarkRunner.Run(report, patterns, log);
+                scan = report.Algorithms[0].Scan;
+                using (var output = new StreamWriter(Path.Combine(runDir, "matches.log"), false, new UTF8Encoding(false)))
+                    BenchmarkRunner.EnsureSame(scan, ScanRunner.Run(files, BenchmarkRunner.Create("aho", patterns), output));
+                File.WriteAllText(Path.Combine(runDir, "results.json"), JsonSerializer.Serialize(report, Json));
+                ReportWriter.Write(Path.Combine(runDir, "report.html"), report);
+                foreach (var r in report.Algorithms) log.Write($"{r.Name}: median {r.Median:F3} ms; preparation {r.PreparationMs:F3} ms", true);
+            }
+            else
+            {
+                string name = options.GetValueOrDefault("algorithm", "aho");
+                timer.Restart(); var matcher = BenchmarkRunner.Create(name, patterns); timer.Stop();
+                log.Write($"{name}: preparation {timer.Elapsed.TotalMilliseconds:F3} ms");
+                timer.Restart(); scan = ScanRunner.Run(files, matcher); timer.Stop();
+                log.Write($"{name}: processing {timer.Elapsed.TotalMilliseconds:F3} ms", true);
+                using var output = new StreamWriter(Path.Combine(runDir, "matches.log"), false, new UTF8Encoding(false));
+                var found = scan.Matches.ToHashSet();
+                foreach (string file in files)
+                foreach (var block in BlockReader.Stream(file))
+                    if (found.Contains(new(block.File, block.Number))) MatchesWriter.Write(output, block);
+            }
+            log.Write($"Checked blocks: {scan.Checked}; matched blocks: {scan.Matches.Count}", true);
+            foreach (var (file, count) in scan.Counts) log.Write($"{file}: {count}", true);
+            log.Write($"Output: {runDir}", true);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            if (logPath != null)
+            {
+                try { File.AppendAllText(logPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] ERROR: {ex.Message}{System.Environment.NewLine}"); }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+            return 1;
+        }
+    }
+}
