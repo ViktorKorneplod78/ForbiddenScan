@@ -1,4 +1,5 @@
 namespace ForbiddenScan;
+// Последовательное чтение: в памяти только текущий блок.
 public static class BlockReader
 {
     public static IEnumerable<DocumentBlock> Stream(string path)
@@ -16,6 +17,7 @@ public static class BlockReader
             if (!string.IsNullOrWhiteSpace(line)) lines.Add(line);
             else if (lines.Count > 0) { yield return new(file, ++number, lines.ToArray()); lines.Clear(); }
         }
+        // Последний блок может не иметь завершающей пустой строки.
         if (lines.Count > 0) yield return new(file, ++number, lines.ToArray());
     }
 }

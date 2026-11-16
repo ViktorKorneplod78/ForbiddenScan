@@ -1,4 +1,5 @@
 namespace ForbiddenScan;
+// Общий последовательный проход для всех вариантов поиска.
 public static class ScanRunner
 {
     public static ScanResult Run(string[] paths, IBlockMatcher matcher, TextWriter? output = null)
@@ -17,7 +18,7 @@ public static class ScanRunner
                     result.Matches.Add(new(block.File, block.Number));
                     result.Counts[name]++;
                     if (output != null) MatchesWriter.Write(output, block);
-                    break;
+                    break; // Для блока достаточно одного совпадения.
                 }
             }
         }

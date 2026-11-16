@@ -1,7 +1,9 @@
 namespace ForbiddenScan;
+// Общие правила регистра и границ для всех алгоритмов.
 public static class TextNormalizer
 {
     public static string Normalize(string text) => text.ToUpperInvariant();
+    // Кавычки и дефисы считаются разделителями.
     public static bool Word(char c) => char.IsLetterOrDigit(c) || c == '_';
     public static bool Boundaries(string text, int start, int length) =>
         (start == 0 || !Word(text[start - 1])) &&

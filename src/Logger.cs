@@ -1,4 +1,5 @@
 namespace ForbiddenScan;
+// Подробности пишем в файл, сводку дополнительно выводим в консоль.
 public sealed class Logger(string path) : IDisposable
 {
     readonly StreamWriter writer = new(path, false, new System.Text.UTF8Encoding(false));

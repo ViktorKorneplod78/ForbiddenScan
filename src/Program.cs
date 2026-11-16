@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 namespace ForbiddenScan;
+// Команды проверки, сравнения алгоритмов и пересоздания отчета.
 public static class Program
 {
     static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
@@ -12,7 +13,7 @@ public static class Program
         string? logPath = null;
         try
         {
-            if (args.Length == 0) { Console.WriteLine("Commands: scan [--algorithm naive|hash|aho], benchmark [--iterations 5], report --run-dir DIR, self-test. Common: --input DIR --run-dir DIR"); return 0; }
+            if (args.Length == 0) { Console.WriteLine("Commands: scan [--algorithm naive|hash|aho|hash-aho], benchmark [--iterations 5], report --run-dir DIR, self-test. scan/benchmark: --input DIR; output: reports/<timestamp>"); return 0; }
             if (args[0] == "self-test") { SelfTests.Run(); return 0; }
             if (args[0] is not ("scan" or "benchmark" or "report")) throw new ArgumentException("Unknown command.");
             var options = new Dictionary<string, string>();
@@ -29,8 +30,9 @@ public static class Program
                 var saved = JsonSerializer.Deserialize<BenchmarkResult>(File.ReadAllText(Path.Combine(dir, "results.json")))!;
                 ReportWriter.Write(Path.Combine(dir, "report.html"), saved); return 0;
             }
+            if (options.ContainsKey("run-dir")) throw new ArgumentException("--run-dir is only supported by report. scan/benchmark create reports/<timestamp> automatically.");
             string input = Path.GetFullPath(options.GetValueOrDefault("input", "InputTerr"));
-            string runDir = Path.GetFullPath(options.GetValueOrDefault("run-dir", Path.Combine("reports", DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss-fff"))));
+            string runDir = Path.GetFullPath(Path.Combine("reports", DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss-fff", System.Globalization.CultureInfo.InvariantCulture)));
             Directory.CreateDirectory(runDir);
             logPath = Path.Combine(runDir, "run.log");
             using var log = new Logger(logPath);
@@ -53,11 +55,12 @@ public static class Program
             {
                 BenchmarkRunner.Run(report, patterns, log);
                 scan = report.Algorithms[0].Scan;
+                // Полные блоки записываем отдельным проходом вне замеров.
                 using (var output = new StreamWriter(Path.Combine(runDir, "matches.log"), false, new UTF8Encoding(false)))
                     BenchmarkRunner.EnsureSame(scan, ScanRunner.Run(files, BenchmarkRunner.Create("aho", patterns), output));
                 File.WriteAllText(Path.Combine(runDir, "results.json"), JsonSerializer.Serialize(report, Json));
                 ReportWriter.Write(Path.Combine(runDir, "report.html"), report);
-                foreach (var r in report.Algorithms) log.Write($"{r.Name}: median {r.Median:F3} ms; preparation {r.PreparationMs:F3} ms", true);
+                foreach (var r in report.Algorithms) log.Write($"{r.Name}: median {r.Median:F3} ms; preparation median {r.PreparationMs:F6} ms", true);
             }
             else
             {
@@ -67,6 +70,7 @@ public static class Program
                 timer.Restart(); scan = ScanRunner.Run(files, matcher); timer.Stop();
                 log.Write($"{name}: processing {timer.Elapsed.TotalMilliseconds:F3} ms", true);
                 using var output = new StreamWriter(Path.Combine(runDir, "matches.log"), false, new UTF8Encoding(false));
+                // Повторное чтение для лога не входит во время поиска.
                 var found = scan.Matches.ToHashSet();
                 foreach (string file in files)
                 foreach (var block in BlockReader.Stream(file))

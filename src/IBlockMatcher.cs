@@ -1,3 +1,3 @@
 namespace ForbiddenScan;
-// Input is already normalized. The common scanner handles blocks and early exit.
+// Строка уже нормализована; обход блоков и ранний выход выполняет ScanRunner.
 public interface IBlockMatcher { bool Matches(string participant); }

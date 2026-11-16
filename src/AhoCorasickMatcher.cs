@@ -1,10 +1,11 @@
 namespace ForbiddenScan;
+// Множественный поиск по бору с суффиксными ссылками.
 public class AhoCorasickMatcher : IBlockMatcher
 {
     class Node
     {
         public Dictionary<char, int> Next = new();
-        public int Fail;
+        public int Fail; // Переход к наибольшему подходящему суффиксу.
         public List<int> Lengths = new();
     }
     readonly List<Node> nodes = new() { new() };
@@ -23,6 +24,7 @@ public class AhoCorasickMatcher : IBlockMatcher
             }
             nodes[state].Lengths.Add(pattern.Length);
         }
+        // Строим ссылки в ширину и наследуем завершения шаблонов.
         var queue = new Queue<int>(nodes[0].Next.Values);
         while (queue.TryDequeue(out int parent))
         {

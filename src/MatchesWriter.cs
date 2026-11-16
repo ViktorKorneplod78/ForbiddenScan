@@ -1,4 +1,5 @@
 namespace ForbiddenScan;
+// Полный блок в исходном порядке, включая повторяющихся участников.
 public static class MatchesWriter
 {
     public static void Write(TextWriter writer, DocumentBlock block)

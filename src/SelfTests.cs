@@ -1,4 +1,5 @@
 namespace ForbiddenScan;
+// Минимальные примеры с заранее известным результатом для всех вариантов.
 public static class SelfTests
 {
     public static void Run()
@@ -14,6 +15,8 @@ public static class SelfTests
             (["А Б"], "А и Б", false),
             (["А-Б"], "«а-б»", true),
             (["++"], "++", true),
+            (["++", "WORD"], "++", true),
+            (["++", "WORD"], "nothing", false),
             (["XАБ", "Б"], "XАБ Б", true),
             (["А Б", "Б"], "ЯА Б", true)
         ];
