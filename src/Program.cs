@@ -13,7 +13,7 @@ public static class Program
         string? logPath = null;
         try
         {
-            if (args.Length == 0) { Console.WriteLine("Commands: scan [--algorithm naive|hash|aho|hash-aho], benchmark [--iterations 5], report --run-dir DIR, self-test. scan/benchmark: --input DIR; output: reports/<timestamp>"); return 0; }
+            if (args.Length == 0) { Console.WriteLine("Commands: scan [--algorithm naive|hash|aho|hash-aho] (default: hash-aho), benchmark [--iterations 5], report --run-dir DIR, self-test. scan/benchmark: --input DIR; output: reports/<timestamp>"); return 0; }
             if (args[0] == "self-test") { SelfTests.Run(); return 0; }
             if (args[0] is not ("scan" or "benchmark" or "report")) throw new ArgumentException("Unknown command.");
             var options = new Dictionary<string, string>();
@@ -64,7 +64,7 @@ public static class Program
             }
             else
             {
-                string name = options.GetValueOrDefault("algorithm", "aho");
+                string name = options.GetValueOrDefault("algorithm", "hash-aho");
                 timer.Restart(); var matcher = BenchmarkRunner.Create(name, patterns); timer.Stop();
                 log.Write($"{name}: preparation {timer.Elapsed.TotalMilliseconds:F3} ms");
                 timer.Restart(); scan = ScanRunner.Run(files, matcher); timer.Stop();

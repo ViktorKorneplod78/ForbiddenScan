@@ -2,7 +2,7 @@
 Консольное приложение .NET 8. Запуск из корня репозитория:
 ```powershell
 dotnet run --project src -c Release -- self-test
-dotnet run --project src -c Release -- scan --algorithm aho
+dotnet run --project src -c Release -- scan
 dotnet run --project src -c Release -- benchmark --iterations 5
 dotnet run --project src -c Release -- report --run-dir reports/КАТАЛОГ
 ```
@@ -32,3 +32,4 @@ reports/<дата_время>: run.log, matches.log; benchmark дополнит�
 dotnet run --project src -c Release -- scan --algorithm hash-aho
 ```
 Все четыре варианта участвуют в self-test и проверке идентичности результатов бенчмарка.
+В режиме scan без --algorithm используется hash-aho (HashSet + Ахо — Корасик).
