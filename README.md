@@ -33,3 +33,7 @@ dotnet run --project src -c Release -- scan --algorithm hash-aho
 ```
 Все четыре варианта участвуют в self-test и проверке идентичности результатов бенчмарка.
 В режиме scan без --algorithm используется hash-aho (HashSet + Ахо — Корасик).
+
+HTML-отчет содержит условия тестирования, входные файлы, таблицу результатов и ссылки на журналы. Название CPU читается из реестра Windows, физическая ОЗУ — через GlobalMemoryStatusEx; сведения сохраняются в results.json при запуске. Команда report использует сохраненную среду и не подменяет ее характеристиками текущей машины.
+
+Self-test выполняется отдельной командой: .\build\ForbiddenScan.exe self-test. Сборка для запуска по имени: dotnet publish src -c Release -o build.

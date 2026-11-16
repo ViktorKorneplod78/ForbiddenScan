@@ -7,6 +7,44 @@ namespace ForbiddenScan;
 public static class Program
 {
     static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
+    // Сведения сохраняются при запуске замеров, report их только читает.
+    public static Dictionary<string, string> CollectEnvironment()
+    {
+        string cpu = System.Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER") ?? "unknown";
+        string ram = "—";
+        if (OperatingSystem.IsWindows())
+        {
+            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"HARDWARE\DESCRIPTION\System\CentralProcessor\0");
+            cpu = (key?.GetValue("ProcessorNameString") as string)?.Trim() ?? cpu;
+            var memory = new MemoryStatus { Length = (uint)Marshal.SizeOf<MemoryStatus>() };
+            if (GlobalMemoryStatusEx(ref memory))
+                ram = (memory.TotalPhysical / (1024d * 1024 * 1024)).ToString("F1") + " GB";
+        }
+        return new()
+        {
+            ["Computer"] = System.Environment.MachineName,
+            ["OS"] = RuntimeInformation.OSDescription,
+            [".NET"] = RuntimeInformation.FrameworkDescription,
+            ["Architecture"] = RuntimeInformation.ProcessArchitecture.ToString(),
+            ["CPU"] = cpu, ["RAM"] = ram,
+            ["Logical processors"] = System.Environment.ProcessorCount.ToString(),
+            ["User"] = System.Environment.UserName
+        };
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MemoryStatus
+    {
+        public uint Length, Load;
+        public ulong TotalPhysical, AvailablePhysical, TotalPageFile, AvailablePageFile,
+            TotalVirtual, AvailableVirtual, AvailableExtendedVirtual;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GlobalMemoryStatusEx(ref MemoryStatus memory);
+
+
     public static int Main(string[] args)
     {
         Console.OutputEncoding = Encoding.UTF8;
@@ -45,9 +83,7 @@ public static class Program
             timer.Stop();
             var report = new BenchmarkResult { Files = files, PatternCount = patterns.Length, InputPreparationMs = timer.Elapsed.TotalMilliseconds,
                 Iterations = int.Parse(options.GetValueOrDefault("iterations", "5")),
-                Environment = new() { ["OS"] = RuntimeInformation.OSDescription, [".NET"] = RuntimeInformation.FrameworkDescription,
-                    ["Architecture"] = RuntimeInformation.ProcessArchitecture.ToString(), ["CPU"] = System.Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER") ?? "unknown",
-                    ["Logical processors"] = System.Environment.ProcessorCount.ToString() } };
+                Environment = CollectEnvironment() };
             if (report.Iterations < 1) throw new ArgumentException("Iterations must be positive.");
             log.Write($"Command: {args[0]}; patterns: {patterns.Length}; common preparation: {report.InputPreparationMs:F3} ms");
             ScanResult scan;
